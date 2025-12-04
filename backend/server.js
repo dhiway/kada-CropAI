@@ -13,9 +13,11 @@ app.use(express.json());
 // Routes
 const recommendationRouter = require('./routers/recommendation');
 const lossAnalysisRouter = require('./routers/lossAnalysis');
+const naturalFarmingRouter = require('./routers/naturalFarming');
 
 app.use('/api/recommendations', recommendationRouter);
 app.use('/api/loss-analysis', lossAnalysisRouter);
+app.use('/api/natural-farming', naturalFarmingRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Crop Recommendation API' });
