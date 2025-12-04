@@ -15,11 +15,13 @@ const recommendationRouter = require('./routers/recommendation');
 const lossAnalysisRouter = require('./routers/lossAnalysis');
 const naturalFarmingRouter = require('./routers/naturalFarming');
 const profitableCropsRouter = require('./routers/profitableCrops');
+const nextCropInsightsRouter = require('./routers/nextCropInsights');
 
 app.use('/api/recommendations', recommendationRouter);
 app.use('/api/loss-analysis', lossAnalysisRouter);
 app.use('/api/natural-farming', naturalFarmingRouter);
 app.use('/api/profitable-crops', profitableCropsRouter);
+app.use('/api/next-crop-insights', nextCropInsightsRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Crop Recommendation API' });
