@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getAllAPMCCrops, getHighDemandCrops } = require('../apmcData');
-const { getTopProfitableCrops, generateCropRecommendation } = require('../profitabilityEngine');
+const { getTopProfitableCrops, generateCropRecommendation, generateCropOperationalDetails } = require('../profitabilityEngine');
 
 /**
  * POST /api/profitable-crops
@@ -28,28 +28,31 @@ router.post('/', async (req, res) => {
     // Generate recommendations
     const recommendations = getTopProfitableCrops(cropNames, farmerData, topN);
     
-    // Format response
-    const formattedRecommendations = recommendations.map(rec => ({
-      crop: rec.crop,
-      expectedIncome: `₹${rec.expectedIncome.toLocaleString('en-IN')}`,
-      demand: rec.demand,
-      successRate: `${rec.successRate}%`,
-      details: {
-        roi: `${rec.profitability.roi}%`,
-        totalCost: `₹${Math.round(rec.profitability.totalCost).toLocaleString('en-IN')}`,
-        profit: `₹${Math.round(rec.profitability.profit).toLocaleString('en-IN')}`,
-        pricePerQuintal: `₹${rec.profitability.pricePerQuintal}/quintal`,
-        priceSource: rec.profitability.priceSource,
-        estimatedYield: `${rec.profitability.yieldQuintals.toFixed(1)} quintals`,
-        areaHectares: rec.areaHectares
-      },
-      marketInfo: rec.marketData ? {
-        recentTrades: rec.marketData.recentTrades.length,
-        totalArrivals: rec.marketData.totalArrivals,
-        avgPrice: `₹${rec.marketData.avgModalPrice}/quintal`,
-        volatility: rec.marketData.priceVolatility
-      } : null
-    }));
+    // Generate operational details for each crop recommendation
+    const formattedRecommendations = await Promise.all(
+      recommendations.map(async (rec) => {
+        // Generate operational details (replaces financial details)
+        const operationalDetails = await generateCropOperationalDetails(
+          rec.crop,
+          rec,
+          farmerData
+        );
+        
+        return {
+          crop: rec.crop,
+          expectedIncome: `₹${rec.expectedIncome.toLocaleString('en-IN')}`,
+          demand: rec.demand,
+          successRate: `${rec.successRate}%`,
+          details: operationalDetails, // Operational details instead of financial details
+          marketInfo: rec.marketData ? {
+            recentTrades: rec.marketData.recentTrades.length,
+            totalArrivals: rec.marketData.totalArrivals,
+            avgPrice: `₹${rec.marketData.avgModalPrice}/quintal`,
+            volatility: rec.marketData.priceVolatility
+          } : null
+        };
+      })
+    );
     
     res.json({
       success: true,
