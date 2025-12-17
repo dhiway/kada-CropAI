@@ -22,115 +22,287 @@ function initializeTogetherAI() {
 }
 
 /**
- * Get government schemes for farmers in Andhra Pradesh
- * This function returns schemes applicable to the farmer profile and crop
+ * Determine crop category based on crop name
  */
-function getApplicableGovernmentSchemes(farmerProfile = {}, crop) {
-  const schemes = [];
-  const { bplFamily, gender, irrigationMethod } = farmerProfile;
+function getCropCategory(crop) {
+  if (!crop) return 'agriculture';
   
-  // Central Government Schemes
-  schemes.push({
-    name: "PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)",
-    type: "Central",
-    description: "Financial support of ₹6000 per year in three equal installments to all landholding farmers",
-    eligibility: "All landholding farmers",
-    benefit: "₹6000/year",
-    applicability: "Universal"
-  });
+  const cropLower = crop.toLowerCase();
   
-  schemes.push({
-    name: "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
-    type: "Central",
-    description: "Crop insurance scheme providing financial support in case of crop failure due to natural calamities",
-    eligibility: "All farmers growing notified crops",
-    benefit: "Insurance coverage up to sum insured",
-    applicability: crop ? `Applicable for ${crop}` : "Applicable for notified crops"
-  });
+  // Horticulture crops (fruits, vegetables, flowers, spices)
+  const horticultureKeywords = [
+    'tomato', 'potato', 'onion', 'chilli', 'brinjal', 'cauliflower', 'cabbage',
+    'beans', 'cucumber', 'gourd', 'okra', 'carrot', 'radish', 'beetroot',
+    'mango', 'banana', 'orange', 'citrus', 'guava', 'papaya', 'pomegranate',
+    'coconut', 'oilpalm', 'cashew', 'spice', 'turmeric', 'ginger', 'garlic',
+    'flower', 'rose', 'marigold', 'chrysanthemum'
+  ];
   
-  schemes.push({
-    name: "Kisan Credit Card (KCC)",
-    type: "Central",
-    description: "Credit facility for farmers to meet agricultural expenses including crop cultivation",
-    eligibility: "All farmers with land ownership or tenancy",
-    benefit: "Credit up to ₹3 lakhs at subsidized interest rates",
-    applicability: "Universal"
-  });
+  // Sericulture crops (mulberry, silk-related)
+  const sericultureKeywords = [
+    'mulberry', 'silk', 'sericulture', 'silkworm'
+  ];
   
-  // Andhra Pradesh State Schemes
-  schemes.push({
-    name: "Rythu Bharosa",
-    type: "State (Andhra Pradesh)",
-    description: "Financial assistance to farmers to support farm inputs and reduce cultivation costs",
-    eligibility: "All farmers in Andhra Pradesh",
-    benefit: "₹13,500/year (₹7,500 for Kharif + ₹6,000 for Rabi)",
-    applicability: "Universal for AP farmers"
-  });
-  
-  schemes.push({
-    name: "YSR Free Crop Insurance",
-    type: "State (Andhra Pradesh)",
-    description: "Free crop insurance to farmers without any premium payment by farmers",
-    eligibility: "Small and marginal farmers in AP",
-    benefit: "100% premium paid by state government",
-    applicability: "Zero premium crop insurance"
-  });
-  
-  schemes.push({
-    name: "YSR Yantra Seva",
-    type: "State (Andhra Pradesh)",
-    description: "Subsidy on agricultural equipment and machinery",
-    eligibility: "Farmers purchasing agricultural equipment",
-    benefit: "50% subsidy on farm equipment (up to specified limits)",
-    applicability: "For mechanization support"
-  });
-  
-  schemes.push({
-    name: "YSR Sunna Vaddi Pathakam",
-    type: "State (Andhra Pradesh)",
-    description: "Interest subvention scheme for crop loans",
-    eligibility: "Farmers availing crop loans",
-    benefit: "Interest-free crop loans up to ₹1 lakh",
-    applicability: "For timely loan repayment"
-  });
-  
-  // BPL specific schemes
-  if (bplFamily) {
-    schemes.push({
-      name: "National Food Security Mission (NFSM)",
-      type: "Central",
-      description: "Scheme to increase production of rice, wheat, pulses, coarse cereals and commercial crops",
-      eligibility: "Priority to BPL and small farmers",
-      benefit: "Subsidy on seeds, inputs, and farm equipment",
-      applicability: "Priority assistance for BPL families"
-    });
+  // Check for horticulture
+  if (horticultureKeywords.some(keyword => cropLower.includes(keyword))) {
+    return 'horticulture';
   }
   
-  // Gender-specific schemes
-  if (gender === "Female" || gender === "female") {
-    schemes.push({
-      name: "Mahila Kisan Sashaktikaran Pariyojana (MKSP)",
-      type: "Central",
-      description: "Scheme to empower women farmers through sustainable agricultural practices",
-      eligibility: "Women farmers",
-      benefit: "Training, inputs, and financial support",
-      applicability: "Women farmer empowerment"
-    });
+  // Check for sericulture
+  if (sericultureKeywords.some(keyword => cropLower.includes(keyword))) {
+    return 'sericulture';
   }
   
-  // Drip irrigation schemes
-  if (irrigationMethod && (irrigationMethod.toUpperCase() === "DRIP" || irrigationMethod.toUpperCase() === "SPRINKLER")) {
-    schemes.push({
-      name: "Pradhan Mantri Krishi Sinchayee Yojana (PMKSY)",
-      type: "Central",
-      description: "Scheme to enhance water use efficiency through micro-irrigation",
-      eligibility: "Farmers adopting micro-irrigation",
-      benefit: "Subsidy on drip/sprinkler irrigation systems",
-      applicability: "Micro-irrigation support"
-    });
-  }
+  // Default to agriculture (grains, pulses, oilseeds, cash crops)
+  return 'agriculture';
+}
+
+/**
+ * Get government schemes for farmers in Andhra Pradesh
+ * Returns filtered schemes based on farmer profile and crop details
+ */
+function getApplicableGovernmentSchemes(farmerProfile = {}, crop, farmingType = null) {
+  const { irrigationMethod } = farmerProfile;
+  const cropCategory = getCropCategory(crop);
   
-  return schemes;
+  // All schemes with categories/tags from Excel file: Agricultural Schemes (2).xlsx
+  const allSchemes = [
+    // Universal schemes (always shown)
+    {
+      name: "e-Panta",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['universal']
+    },
+    {
+      name: "PM Kisan Scheme",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['universal']
+    },
+    {
+      name: "AnnadathaSukhibhava- PM Kisan Scheme",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['universal']
+    },
+    {
+      name: "Crop Insurance",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['universal']
+    },
+    {
+      name: "Rythu Seva Kendralu (RSKs)",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['universal']
+    },
+    {
+      name: "Weekly Polam Pilisthundhi",
+      link: "https://gad.ap.gov.in/annual_report/annual-administrative-report-2016-17-2.pdf",
+      categories: ['universal']
+    },
+    
+    // Agriculture-specific schemes
+    {
+      name: "National Mission on management of Soil Health & Fertility (NMSH&F",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "PM- RKVY- Rainfed Area Development (RAD) 2025-26",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Insight - Quality Control",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Integrated Agri labs",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Polambadi",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Farm Mechanisation",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture', 'mechanization']
+    },
+    {
+      name: "Seed Farms",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Digital Agricultural Mission- GoI",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Fertilizers",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Sub Mission on Agricultural Extension (Agriculture Technology Management Agency- ATMA)",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Rashtriya Krishi Vikas Yojana (RKVY)",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "SUBSIDY SEED DISTRIBUTION",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    {
+      name: "Natural calamities-Input Subsidy Relief to Affected Farmers",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture', 'universal']
+    },
+    {
+      name: "NFSNM-Seed Components (erstwhile SMSP) ASSISTANCE FOR FOSTERING SEEDS OF NEW VARIETIES",
+      link: "https://agriculture.ap.gov.in/home",
+      categories: ['agriculture']
+    },
+    
+    // Horticulture-specific schemes
+    {
+      name: "Andhra Pradesh Micro Irrigation Project (APMIP)",
+      link: "https://horticulturedept.ap.gov.in/Horticulture/NewAboutUs.aspx",
+      categories: ['horticulture', 'micro-irrigation']
+    },
+    {
+      name: "Mission for Integrated Development of Horticulture (MIDH) in Andhra Pradesh",
+      link: "https://horticulture.ap.nic.in/MIDH.html",
+      categories: ['horticulture']
+    },
+    {
+      name: "Rashtriya Krishi Vikas Yojana",
+      link: "https://horticulture.ap.nic.in/RKVY.html",
+      categories: ['horticulture']
+    },
+    {
+      name: "National Food Security Mission-Oilpalm",
+      link: "https://horticulture.ap.nic.in/OIL%20PALM.html",
+      categories: ['horticulture']
+    },
+    {
+      name: "Coconut Development Board",
+      link: "https://horticulture.ap.nic.in/CDB.html",
+      categories: ['horticulture']
+    },
+    
+    // Sericulture-specific schemes
+    {
+      name: "Silk Samagra",
+      link: "https://csb.gov.in/schemes/isdsi/",
+      categories: ['sericulture']
+    },
+    {
+      name: "Catalytic Development Programme during XII Five Year Plan (Centrally Sponsored Scheme)",
+      link: "https://csb.gov.in/schemes/centrally-sponsored/",
+      categories: ['sericulture']
+    },
+    {
+      name: "All schemes related",
+      link: "https://silks.csb.gov.in/eastgodavari/schemes-grants-for-farmers/",
+      categories: ['sericulture']
+    },
+    {
+      name: "Supply of Rearing appliances",
+      link: "http://sericulture.ap.gov.in/sub_schemes.php?id=4",
+      categories: ['sericulture']
+    },
+    {
+      name: "Construction of Rearing Sheds",
+      link: "http://sericulture.ap.gov.in/sub_schemes.php?id=3",
+      categories: ['sericulture']
+    },
+    {
+      name: "REMUNERATIVE APPROACHES FOR AGRICULTURE AND ALLIED SECTOR REJUNENATION",
+      link: "http://sericulture.ap.gov.in/sub_schemes.php?id=18",
+      categories: ['sericulture']
+    },
+    {
+      name: "Development of Mulberry Bush Plantation",
+      link: "http://sericulture.ap.gov.in/sub_schemes.php?id=19",
+      categories: ['sericulture']
+    },
+    {
+      name: "Construction of Silkworm Rearing Sheds (Type-I & Type-II)",
+      link: "http://sericulture.ap.gov.in/sub_schemes.php?id=21",
+      categories: ['sericulture']
+    },
+    {
+      name: "Silk Samagra",
+      link: "http://sericulture.ap.gov.in/schemes.php?id=4",
+      categories: ['sericulture']
+    },
+    
+    // Natural Farming schemes
+    {
+      name: "Bhartiya Prakritik Krishi Paddhati (BPKP), a sub-scheme under the Paramparagat Krishi Vikas Yojana (PKVY)",
+      link: "https://blogs.isb.edu/bhartiinstitute/2024/12/03/natural-farming-in-andhra-pradesh-a-model-state-in-the-making/",
+      categories: ['natural-farming']
+    }
+  ];
+  
+  // Filter schemes based on relevance
+  const filteredSchemes = allSchemes.filter(scheme => {
+    // Always include universal schemes
+    if (scheme.categories.includes('universal')) {
+      return true;
+    }
+    
+    // Include schemes matching crop category
+    if (scheme.categories.includes(cropCategory)) {
+      return true;
+    }
+    
+    // Include micro-irrigation schemes if farmer uses drip/sprinkler
+    if (scheme.categories.includes('micro-irrigation')) {
+      const irrigationUpper = irrigationMethod ? irrigationMethod.toUpperCase() : '';
+      if (irrigationUpper === 'DRIP' || irrigationUpper === 'SPRINKLER' || irrigationUpper.includes('MICRO')) {
+        return true;
+      }
+    }
+    
+    // Include natural farming schemes if farmer practices natural/organic farming
+    if (scheme.categories.includes('natural-farming')) {
+      const farmingTypeUpper = farmingType ? farmingType.toUpperCase() : '';
+      if (farmingTypeUpper.includes('NATURAL') || farmingTypeUpper.includes('ORGANIC') || farmingTypeUpper.includes('PRACTICE')) {
+        return true;
+      }
+    }
+    
+    // Include mechanization schemes (generally applicable)
+    if (scheme.categories.includes('mechanization')) {
+      return true;
+    }
+    
+    return false;
+  });
+  
+  // Remove duplicate schemes (some schemes appear multiple times)
+  const uniqueSchemes = [];
+  const seenNames = new Set();
+  filteredSchemes.forEach(scheme => {
+    if (!seenNames.has(scheme.name)) {
+      seenNames.add(scheme.name);
+      uniqueSchemes.push({
+        name: scheme.name,
+        link: scheme.link
+      });
+    }
+  });
+  
+  return uniqueSchemes;
 }
 
 /**
@@ -307,7 +479,7 @@ router.post('/', async (req, res) => {
     // Get applicable government schemes
     console.log('Fetching applicable government schemes...');
     const farmerProfileForSchemes = { bplFamily, gender, irrigationMethod };
-    const governmentSchemes = getApplicableGovernmentSchemes(farmerProfileForSchemes, suggestedCrop);
+    const governmentSchemes = getApplicableGovernmentSchemes(farmerProfileForSchemes, suggestedCrop, farmingType);
     
     // Initialize Together AI
     console.log('Initializing Together AI...');
