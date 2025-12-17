@@ -4,6 +4,7 @@ const OpenAI = require('openai');
 const dotenv = require('dotenv');
 const { getMSPData } = require('../mspData');
 const { getAPMCCropData } = require('../apmcData');
+const { generateCacheKey, get, set } = require('../services/cacheService');
 
 dotenv.config();
 
@@ -309,12 +310,43 @@ router.post('/', async (req, res) => {
     const farmerProfileForSchemes = { bplFamily, gender, irrigationMethod };
     const governmentSchemes = getApplicableGovernmentSchemes(farmerProfileForSchemes, suggestedCrop);
     
-    // Initialize Together AI
-    console.log('Initializing Together AI...');
-    const client = initializeTogetherAI();
+    // Check cache for AI insights
+    const cacheParams = {
+      crop: suggestedCrop?.toLowerCase(),
+      season: season?.toLowerCase(),
+      region: region?.toLowerCase(),
+      landArea: farmerLandArea,
+      currentCrop: farmerCurrentCrop?.toLowerCase(),
+      currentYield: farmerCurrentYield,
+      currentIncome: farmerCurrentIncome,
+      investmentTotal: investmentAnalysis.totalInvestment,
+      farmerProfileHash: JSON.stringify({
+        bplFamily,
+        gender,
+        education,
+        irrigationMethod,
+        waterSource,
+        farmingType
+      }).substring(0, 100)
+    };
+    const cacheKey = generateCacheKey('next-crop-insights', cacheParams);
     
-    // Build comprehensive prompt for AI
-    const aiPrompt = `You are an expert agricultural advisor for Andhra Pradesh, specifically for the ${region} region in Chittoor district.
+    // Try to get cached AI insights
+    let parsedInsights = null;
+    let aiInsights = null;
+    const cachedInsights = await get(cacheKey);
+    
+    if (cachedInsights) {
+      console.log('Using cached AI insights');
+      parsedInsights = cachedInsights.parsedInsights;
+      aiInsights = cachedInsights.aiInsights;
+    } else {
+      // Initialize Together AI
+      console.log('Initializing Together AI...');
+      const client = initializeTogetherAI();
+    
+      // Build comprehensive prompt for AI
+      const aiPrompt = `You are an expert agricultural advisor for Andhra Pradesh, specifically for the ${region} region in Chittoor district.
 
 **FARMER PROFILE:**
 - Location: ${region}, Andhra Pradesh
@@ -396,47 +428,54 @@ Required JSON structure:
 
 Return ONLY the JSON object.`;
 
-    console.log('Calling Together AI for insights...');
-    const aiResponse = await client.chat.completions.create({
-      model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
-      messages: [
-        {
-          role: "system",
-          content: "You are a precise agricultural data analyst for Andhra Pradesh. You ONLY respond with valid JSON objects. Never use markdown, never explain, just pure JSON with accurate farming data for Chittoor district."
-        },
-        {
-          role: "user",
-          content: aiPrompt
-        }
-      ],
-      temperature: 0.5,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
-    });
-    
-    let aiInsights = aiResponse.choices[0].message.content;
-    console.log('AI insights generated successfully');
-    console.log('Raw AI response length:', aiInsights.length);
-    
-    // Clean up response - remove markdown code blocks if present
-    aiInsights = aiInsights.trim();
-    if (aiInsights.startsWith('```json')) {
-      aiInsights = aiInsights.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    } else if (aiInsights.startsWith('```')) {
-      aiInsights = aiInsights.replace(/^```\n?/, '').replace(/\n?```$/, '');
-    }
-    
-    // Parse AI response to extract structured data
-    let parsedInsights = {};
-    try {
-      // Try to parse as JSON
-      parsedInsights = JSON.parse(aiInsights);
-      console.log('Successfully parsed AI response as JSON');
-    } catch (e) {
-      console.error('Failed to parse AI response as JSON:', e.message);
-      console.log('First 200 chars of response:', aiInsights.substring(0, 200));
-      // If not JSON, keep as text
-      parsedInsights = { rawInsights: aiInsights };
+      console.log('Calling Together AI for insights...');
+      const aiResponse = await client.chat.completions.create({
+        model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+        messages: [
+          {
+            role: "system",
+            content: "You are a precise agricultural data analyst for Andhra Pradesh. You ONLY respond with valid JSON objects. Never use markdown, never explain, just pure JSON with accurate farming data for Chittoor district."
+          },
+          {
+            role: "user",
+            content: aiPrompt
+          }
+        ],
+        temperature: 0.5,
+        max_tokens: 2000,
+        response_format: { type: "json_object" }
+      });
+      
+      aiInsights = aiResponse.choices[0].message.content;
+      console.log('AI insights generated successfully');
+      console.log('Raw AI response length:', aiInsights.length);
+      
+      // Clean up response - remove markdown code blocks if present
+      aiInsights = aiInsights.trim();
+      if (aiInsights.startsWith('```json')) {
+        aiInsights = aiInsights.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      } else if (aiInsights.startsWith('```')) {
+        aiInsights = aiInsights.replace(/^```\n?/, '').replace(/\n?```$/, '');
+      }
+      
+      // Parse AI response to extract structured data
+      parsedInsights = {};
+      try {
+        // Try to parse as JSON
+        parsedInsights = JSON.parse(aiInsights);
+        console.log('Successfully parsed AI response as JSON');
+      } catch (e) {
+        console.error('Failed to parse AI response as JSON:', e.message);
+        console.log('First 200 chars of response:', aiInsights.substring(0, 200));
+        // If not JSON, keep as text
+        parsedInsights = { rawInsights: aiInsights };
+      }
+      
+      // Cache the AI insights
+      await set(cacheKey, {
+        parsedInsights,
+        aiInsights
+      }, 6); // Cache for 6 hours
     }
     
     // Build final response

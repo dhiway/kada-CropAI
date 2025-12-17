@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+// Initialize cache service
+const { initializeRedis } = require('./services/cacheService');
+
 const app = express();
 
 // Middleware
@@ -28,6 +31,19 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Initialize Redis cache connection
+  try {
+    const redisClient = initializeRedis();
+    if (redisClient) {
+      console.log('Cache service initialized');
+    } else {
+      console.log('Cache service disabled or Redis unavailable - continuing without cache');
+    }
+  } catch (error) {
+    console.error('Error initializing cache service:', error.message);
+    console.log('Continuing without cache - API will work but without caching');
+  }
 });

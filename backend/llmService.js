@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const { generateCacheKey, get, set } = require('./services/cacheService');
 
 // Initialize OpenAI or Together AI client
 let llmClient = null;
@@ -32,6 +33,21 @@ function initializeLLMClient() {
  * @returns {Promise<Object>} LLM generated insights
  */
 async function generateLLMInsights(cropName, recommendation, farmerData = null) {
+  // Check cache first
+  const cacheParams = {
+    cropName: cropName?.toLowerCase(),
+    region: 'KUPPAM/PALAMANER',
+    expectedIncome: recommendation?.expectedIncome,
+    demand: recommendation?.demand,
+    farmerProfileHash: farmerData ? JSON.stringify(farmerData.profile?.address || '').substring(0, 50) : null
+  };
+  const cacheKey = generateCacheKey('llm-insights', cacheParams);
+  
+  const cachedResult = await get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+  
   const client = initializeLLMClient();
   
   if (!client) {
@@ -66,12 +82,17 @@ Keep responses concise, actionable, and specific to the Chittoor district agricu
     
     const insights = response.choices[0].message.content;
     
-    return {
+    const result = {
       available: true,
       provider: llmProvider,
       insights,
       recommendations: parseInsightsIntoRecommendations(insights)
     };
+    
+    // Cache the result
+    await set(cacheKey, result, 6); // Cache for 6 hours
+    
+    return result;
     
   } catch (error) {
     console.error('Error generating LLM insights:', error);
@@ -216,6 +237,26 @@ Keep total response under 300 words.`
  * @returns {Promise<Object>} Structured operational details
  */
 async function generateCropOperationalDetails(cropName, recommendation, farmerData = null) {
+  // Check cache first
+  const cacheParams = {
+    cropName: cropName?.toLowerCase(),
+    region: 'KUPPAM/PALAMANER',
+    demand: recommendation?.demand,
+    expectedIncome: recommendation?.expectedIncome,
+    areaHectares: recommendation?.areaHectares,
+    farmerProfileHash: farmerData ? JSON.stringify({
+      farmingType: farmerData.profile?.metaData?.masterData?.cropDetails?.farmingType,
+      waterSource: farmerData.profile?.metaData?.masterData?.cropDetails?.waterSource,
+      irrigationMethod: farmerData.profile?.metaData?.masterData?.cropDetails?.methodOfIrrigation
+    }).substring(0, 100) : null
+  };
+  const cacheKey = generateCacheKey('operational-details', cacheParams);
+  
+  const cachedResult = await get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+  
   const client = initializeLLMClient();
   
   if (!client) {
@@ -257,7 +298,12 @@ Return ONLY valid JSON with no additional text or explanations.`
       const operationalDetails = JSON.parse(jsonMatch[0]);
       
       // Validate and return
-      return validateOperationalDetails(operationalDetails, cropName, recommendation);
+      const validatedDetails = validateOperationalDetails(operationalDetails, cropName, recommendation);
+      
+      // Cache the result
+      await set(cacheKey, validatedDetails, 6); // Cache for 6 hours
+      
+      return validatedDetails;
     } else {
       throw new Error('No JSON found in AI response');
     }
