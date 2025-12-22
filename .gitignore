@@ -2937,3 +2937,8 @@ temp/
 *.sw?
 
 # Local Netlify
+
+
+#Ignore cursor AI rules
+.cursor/
+.codacy
