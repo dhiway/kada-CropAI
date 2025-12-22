@@ -23,7 +23,7 @@ async function getOpenAIRecommendation(farmProfile) {
       },
     ],
     temperature: 0.7,
-    max_tokens: 1000,
+    max_tokens: 3000,
   });
 
   return response.choices[0].message.content;
@@ -214,6 +214,50 @@ CRITICAL: Return ONLY valid JSON with no additional text, explanations, or forma
         "fertilizers": ["", "", ""],
         "pesticides": [""]
       }
+    },
+    {
+      "crop": "cropName",
+      "score": inpercentage between 0 and 100,
+      "reason": "in500Charectors",
+      "expectedProfit": inINR,
+      "expectedYield": inTons,
+      "waterRequirement": inLitres,
+      "laborRequirement": inHours,
+      "maturityTime": inDays,
+      "riskLevel": "Low || Medium || High",
+      "equipmentNeeded": ["", "", ""],
+      "effortDistribution": {
+        "setup": inHours,
+        "maintenance": inHours,
+        "harvesting": inHours
+      },
+      "resourceRequirements": {
+        "waterNeeded": inLitres,
+        "fertilizers": ["", "", ""],
+        "pesticides": [""]
+      }
+    },
+    {
+      "crop": "cropName",
+      "score": inpercentage between 0 and 100,
+      "reason": "in500Charectors",
+      "expectedProfit": inINR,
+      "expectedYield": inTons,
+      "waterRequirement": inLitres,
+      "laborRequirement": inHours,
+      "maturityTime": inDays,
+      "riskLevel": "Low || Medium || High",
+      "equipmentNeeded": ["", "", ""],
+      "effortDistribution": {
+        "setup": inHours,
+        "maintenance": inHours,
+        "harvesting": inHours
+      },
+      "resourceRequirements": {
+        "waterNeeded": inLitres,
+        "fertilizers": ["", "", ""],
+        "pesticides": [""]
+      }
     }
   ]
 }
@@ -223,7 +267,9 @@ REQUIREMENTS:
 - Use actual crop names suitable for the region
 - Calculate profit based on MSP data and expected yield
 - Consider soil conditions and climate data
-- Provide 2-3 alternative crops with different characteristics
+- Provide 4-5 relevant alternative crops with different characteristics to give farmers multiple viable options
+- Ensure variety in the alternative crops (different profit levels, risk levels, water requirements, maturity times)
+- Rank alternative crops by their score (0-100) based on suitability for the farmer's conditions
 - Return ONLY the JSON object, no additional text
 `;
 
@@ -245,9 +291,9 @@ REQUIREMENTS:
             content: farmProfile,
           },
         ],
-        model: "mistralai/Mistral-7B-Instruct-v0.1",
+        model: "mistralai/Mistral-7B-Instruct-v0.3",
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 3000,
         stop: ["</s>"],
       });
       aiResponse = response.choices[0].message.content;
@@ -308,17 +354,59 @@ REQUIREMENTS:
         alternativeCrops: [
           {
             crop: "Groundnut",
-            score: 65,
-            reason: "Alternative oilseed crop with stable market demand",
-            expectedProfit: 70000,
-            expectedYield: 1.8,
-            waterRequirement: 1800,
+            score: 85,
+            reason: "High-value oilseed crop with stable market demand and good MSP support. Suitable for diverse soil types.",
+            expectedProfit: 90000,
+            expectedYield: 2.2,
+            waterRequirement: 1500,
             laborRequirement: 90,
             maturityTime: 105,
-            riskLevel: "Medium",
-            equipmentNeeded: ["Tractor"],
+            riskLevel: "Low",
+            equipmentNeeded: ["Tractor", "Seed Drill"],
             effortDistribution: { setup: 15, maintenance: 45, harvesting: 30 },
-            resourceRequirements: { waterNeeded: "1800 L/ha", fertilizers: ["DAP"], pesticides: ["Cypermethrin"] }
+            resourceRequirements: { waterNeeded: "1500 L/ha", fertilizers: ["DAP", "Urea"], pesticides: ["Cypermethrin"] }
+          },
+          {
+            crop: "Cotton (Medium Staple)",
+            score: 80,
+            reason: "Excellent cash crop with high MSP rates. Suitable for moderate rainfall regions with good profit margins.",
+            expectedProfit: 120000,
+            expectedYield: 3.5,
+            waterRequirement: 2500,
+            laborRequirement: 150,
+            maturityTime: 150,
+            riskLevel: "Medium",
+            equipmentNeeded: ["Tractor", "Cotton Picker"],
+            effortDistribution: { setup: 30, maintenance: 70, harvesting: 50 },
+            resourceRequirements: { waterNeeded: "2500 L/ha", fertilizers: ["Urea", "Potash"], pesticides: ["Pesticide Mix"] }
+          },
+          {
+            crop: "Moong (Green Gram)",
+            score: 75,
+            reason: "Short-duration pulse crop with good MSP. Ideal for crop rotation and improves soil nitrogen content.",
+            expectedProfit: 65000,
+            expectedYield: 1.5,
+            waterRequirement: 1200,
+            laborRequirement: 70,
+            maturityTime: 70,
+            riskLevel: "Low",
+            equipmentNeeded: ["Tractor", "Thresher"],
+            effortDistribution: { setup: 10, maintenance: 35, harvesting: 25 },
+            resourceRequirements: { waterNeeded: "1200 L/ha", fertilizers: ["DAP"], pesticides: ["Neem Oil"] }
+          },
+          {
+            crop: "Sesamum (Til)",
+            score: 70,
+            reason: "High-value oilseed with excellent MSP rates. Requires less water and suitable for rain-fed conditions.",
+            expectedProfit: 75000,
+            expectedYield: 1.8,
+            waterRequirement: 1000,
+            laborRequirement: 80,
+            maturityTime: 90,
+            riskLevel: "Medium",
+            equipmentNeeded: ["Tractor", "Harvester"],
+            effortDistribution: { setup: 15, maintenance: 40, harvesting: 25 },
+            resourceRequirements: { waterNeeded: "1000 L/ha", fertilizers: ["Urea", "SSP"], pesticides: ["Insecticide"] }
           }
         ]
       };

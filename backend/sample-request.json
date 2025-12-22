@@ -1,0 +1,117 @@
+{
+  "farmerData": {
+    "profile": {
+      "address": "Dandikuppam",
+      "metaData": {
+        "status": "COMPLETED",
+        "stages": [
+          {
+            "stageName": "treating-soil",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 10000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "land-preparation",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 15000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "sowing",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 8000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "crop-protection",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 8000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "vegetative-stage",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 2000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "flowering",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 6000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "fruiting",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 10000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "harvesting",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 50000
+                }
+              }
+            ]
+          },
+          {
+            "stageName": "post-harvest",
+            "categories": [
+              {
+                "data": {
+                  "totalCost": 1000
+                }
+              }
+            ]
+          }
+        ],
+        "masterData": {
+          "cropDetails": {
+            "cropYield": 7500,
+            "cropVariety": "RIDGE GOURD",
+            "farmingType": "CONVENTIONAL",
+            "waterSource": "BOREWELL",
+            "methodOfIrrigation": "DRIP",
+            "incomeFromYieldSale": 75000
+          },
+          "agriStack": {
+            "totalAreaHectares": 0.6
+          }
+        }
+      }
+    }
+  },
+  "region": "KUPPAM/PALAMANER",
+  "topN": 5
+}
