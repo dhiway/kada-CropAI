@@ -2,11 +2,135 @@ const express = require('express');
 const Together = require('together-ai');
 const OpenAI = require('openai');
 const dotenv = require('dotenv');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { getMSPData, getHighValueCrops } = require('../mspData');
 
 // Load environment variables
 dotenv.config();
+
+// Load rainfall data
+const rainfallDataPath = path.join(__dirname, '../rainfallData.json');
+let rainfallData = {};
+try {
+  const rainfallDataContent = fs.readFileSync(rainfallDataPath, 'utf8');
+  rainfallData = JSON.parse(rainfallDataContent);
+} catch (error) {
+  console.error('Error loading rainfall data:', error.message);
+}
+
+// Function to find the best matching mandal name
+function findMandalMatch(requestedMandal) {
+  // First, try exact match (case insensitive)
+  const exactMatch = Object.keys(rainfallData).find(mandal =>
+    mandal.toLowerCase() === requestedMandal.toLowerCase()
+  );
+  if (exactMatch) return exactMatch;
+
+  // Second, try partial match (e.g., "Kuppam" should match "KUPPAM URBAN" or "KUPPAM RURAL")
+  const partialMatch = Object.keys(rainfallData).find(mandal =>
+    mandal.toLowerCase().includes(requestedMandal.toLowerCase()) ||
+    requestedMandal.toLowerCase().includes(mandal.toLowerCase().replace(' urban', '').replace(' rural', ''))
+  );
+  if (partialMatch) return partialMatch;
+
+  // Third, try word-based matching (split by spaces and match any word)
+  const requestedWords = requestedMandal.toLowerCase().split(' ');
+  const wordMatch = Object.keys(rainfallData).find(mandal => {
+    const mandalWords = mandal.toLowerCase().split(' ');
+    return requestedWords.some(word => mandalWords.includes(word));
+  });
+  if (wordMatch) return wordMatch;
+
+  return null;
+}
+
+// Function to calculate rainfall statistics for a mandal
+function calculateRainfallStats(requestedMandal) {
+  console.log(`🔍 Processing rainfall data for mandal: ${requestedMandal}`);
+
+  // Find the best matching mandal name
+  const matchedMandal = findMandalMatch(requestedMandal);
+
+  if (!matchedMandal) {
+    console.log(`❌ No rainfall data found for mandal: ${requestedMandal} (tried various matching strategies)`);
+    console.log(`📋 Available mandals: ${Object.keys(rainfallData).join(', ')}`);
+    return null;
+  }
+
+  console.log(`✅ Matched "${requestedMandal}" to "${matchedMandal}", analyzing ${Object.keys(rainfallData[matchedMandal]).length} years of data`);
+
+  const mandalData = rainfallData[matchedMandal];
+  const years = Object.keys(mandalData);
+  const monthlyTotals = {};
+  const yearlyTotals = {};
+  const seasonalPatterns = {
+    kharif: [], // Jun-Oct
+    rabi: [],   // Nov-Mar
+    summer: []  // Apr-May
+  };
+
+  // Calculate monthly and yearly totals
+  years.forEach(year => {
+    let yearlyTotal = 0;
+    const months = Object.keys(mandalData[year]);
+
+    months.forEach(month => {
+      const rainfall = mandalData[year][month];
+      yearlyTotal += rainfall;
+
+      // Initialize monthly total if not exists
+      if (!monthlyTotals[month]) {
+        monthlyTotals[month] = [];
+      }
+      monthlyTotals[month].push(rainfall);
+
+      // Categorize by season
+      const monthNum = new Date(`${month} 1`).getMonth() + 1;
+      if (monthNum >= 6 && monthNum <= 10) {
+        seasonalPatterns.kharif.push(rainfall);
+      } else if (monthNum >= 11 || monthNum <= 3) {
+        seasonalPatterns.rabi.push(rainfall);
+      } else {
+        seasonalPatterns.summer.push(rainfall);
+      }
+    });
+
+    yearlyTotals[year] = yearlyTotal;
+  });
+
+  // Calculate averages
+  const monthlyAverages = {};
+  Object.keys(monthlyTotals).forEach(month => {
+    const values = monthlyTotals[month].filter(v => v > 0); // Exclude zero values for averages
+    monthlyAverages[month] = values.length > 0 ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1) : 0;
+  });
+
+  const avgYearlyRainfall = Object.values(yearlyTotals).reduce((a, b) => a + b, 0) / years.length;
+  const avgKharif = seasonalPatterns.kharif.filter(v => v > 0).reduce((a, b) => a + b, 0) / Math.max(seasonalPatterns.kharif.filter(v => v > 0).length, 1);
+  const avgRabi = seasonalPatterns.rabi.filter(v => v > 0).reduce((a, b) => a + b, 0) / Math.max(seasonalPatterns.rabi.filter(v => v > 0).length, 1);
+  const avgSummer = seasonalPatterns.summer.filter(v => v > 0).reduce((a, b) => a + b, 0) / Math.max(seasonalPatterns.summer.filter(v => v > 0).length, 1);
+
+  // Find most recent year data
+  const latestYear = Math.max(...years.map(y => parseInt(y)));
+  const latestData = mandalData[latestYear.toString()];
+
+  return {
+    mandal: matchedMandal,
+    averageYearlyRainfall: avgYearlyRainfall.toFixed(1),
+    seasonalAverages: {
+      kharif: avgKharif.toFixed(1),
+      rabi: avgRabi.toFixed(1),
+      summer: avgSummer.toFixed(1)
+    },
+    monthlyAverages,
+    yearlyTotals,
+    latestYearData: latestData,
+    yearsAnalyzed: years.length,
+    rainfallPattern: avgYearlyRainfall > 1000 ? 'High' : avgYearlyRainfall > 500 ? 'Medium' : 'Low'
+  };
+}
 
 // Separate function for OpenAI API request
 async function getOpenAIRecommendation(farmProfile) {
@@ -100,6 +224,42 @@ RECOMMENDATION STRATEGY:
       encumbrance = {}
     } = cropData;
 
+    // Get rainfall statistics for the mandal
+    const mandalName = landDetails.subDistrict || landDetails.district || 'Unknown';
+    console.log(`📍 Extracted mandal name from request: "${mandalName}"`);
+
+    const rainfallStats = calculateRainfallStats(mandalName);
+
+    const rainfallAnalysis = rainfallStats ? `
+RAINFALL ANALYSIS FOR ${rainfallStats.mandal.toUpperCase()} (${rainfallStats.yearsAnalyzed} years of data):
+
+ANNUAL PATTERNS:
+- Average Yearly Rainfall: ${rainfallStats.averageYearlyRainfall} mm
+- Rainfall Classification: ${rainfallStats.rainfallPattern} rainfall region
+
+SEASONAL AVERAGES:
+- Kharif Season (Jun-Oct): ${rainfallStats.seasonalAverages.kharif} mm
+- Rabi Season (Nov-Mar): ${rainfallStats.seasonalAverages.rabi} mm
+- Summer Season (Apr-May): ${rainfallStats.seasonalAverages.summer} mm
+
+MONTHLY AVERAGES (mm):
+${Object.entries(rainfallStats.monthlyAverages).map(([month, avg]) => `- ${month}: ${avg}`).join('\n')}
+
+LATEST YEAR DATA (2025):
+${Object.entries(rainfallStats.latestYearData).map(([month, rainfall]) => `- ${month}: ${rainfall} mm`).join('\n')}
+
+AGRICULTURAL IMPLICATIONS:
+- ${rainfallStats.rainfallPattern === 'High' ? 'Suitable for water-intensive crops, but consider drainage needs' : rainfallStats.rainfallPattern === 'Medium' ? 'Balanced rainfall - good for diverse cropping patterns' : 'Low rainfall area - focus on drought-resistant crops and water conservation'}
+- Kharif crops recommended if adequate monsoon rainfall expected
+- Consider irrigation supplementation for Rabi crops during dry spells
+- Historical data shows ${rainfallStats.yearsAnalyzed} years of rainfall patterns for accurate planning` : 'No rainfall data available for this region';
+
+    console.log(`🌧️  Rainfall analysis ${rainfallStats ? 'SUCCESSFULLY GENERATED' : 'NOT AVAILABLE'} for mandal: ${mandalName}`);
+    if (rainfallStats) {
+      console.log(`   📊 Average rainfall: ${rainfallStats.averageYearlyRainfall}mm (${rainfallStats.rainfallPattern} region)`);
+      console.log(`   📅 Years analyzed: ${rainfallStats.yearsAnalyzed}`);
+    }
+
     // Create comprehensive farm profile
     const farmProfile = `
 COMPREHENSIVE FARMER PROFILE:
@@ -133,6 +293,8 @@ SOIL HEALTH PARAMETERS:
 FARMER'S INVESTMENT & INCOME:
 - Investment in Kharif: ₹${cropDetailsFarmer.investmentKharif || '0'}
 - Farmer Assets: ${cropDetailsFarmer.farmerAssets?.join(', ') || 'Not provided'}
+
+${rainfallAnalysis}
 
 ${historicalPriceContext}
 
