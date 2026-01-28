@@ -20,29 +20,75 @@ try {
   console.error('Error loading rainfall data:', error.message);
 }
 
+// Function to normalize mandal names for better matching
+function normalizeMandalName(mandalName) {
+  if (!mandalName) return '';
+  
+  return mandalName
+    .toLowerCase()
+    .replace(/\s+/g, '') // Remove all spaces
+    .replace(/[^a-z]/g, '') // Remove non-letters
+    .replace(/urban|rural/g, '') // Remove common suffixes
+    .replace(/shanthi|santhi/g, 'santhi') // Normalize phonetic variations
+    .replace(/kuppam|kupam|kpm/g, 'kuppam') // Normalize Kuppam variations
+    .replace(/gudipalle|gudupalle|gudipalli|gudupal/g, 'gudipalle') // Normalize Gudipalle variations
+    .replace(/ramakuppam|ramkuppam|ramkupam/g, 'ramakuppam'); // Normalize Ramakuppam variations
+}
+
+// Function to calculate similarity score between two normalized names
+function calculateSimilarity(normalizedName, targetName) {
+  const normalizedTarget = normalizeMandalName(targetName);
+  
+  // Exact match
+  if (normalizedName === normalizedTarget) return 100;
+  
+  // Check if one contains the other
+  if (normalizedName.includes(normalizedTarget) || normalizedTarget.includes(normalizedName)) {
+    return 80;
+  }
+  
+  // Check for common substrings (at least 4 characters)
+  let maxCommon = 0;
+  for (let i = 0; i < normalizedName.length; i++) {
+    for (let j = i + 4; j <= normalizedName.length; j++) {
+      const substring = normalizedName.substring(i, j);
+      if (normalizedTarget.includes(substring)) {
+        maxCommon = Math.max(maxCommon, substring.length);
+      }
+    }
+  }
+  
+  // Return similarity score based on common substring length
+  return maxCommon > 0 ? (maxCommon / Math.max(normalizedName.length, normalizedTarget.length)) * 50 : 0;
+}
+
 // Function to find the best matching mandal name
 function findMandalMatch(requestedMandal) {
-  // First, try exact match (case insensitive)
-  const exactMatch = Object.keys(rainfallData).find(mandal =>
-    mandal.toLowerCase() === requestedMandal.toLowerCase()
-  );
-  if (exactMatch) return exactMatch;
-
-  // Second, try partial match (e.g., "Kuppam" should match "KUPPAM URBAN" or "KUPPAM RURAL")
-  const partialMatch = Object.keys(rainfallData).find(mandal =>
-    mandal.toLowerCase().includes(requestedMandal.toLowerCase()) ||
-    requestedMandal.toLowerCase().includes(mandal.toLowerCase().replace(' urban', '').replace(' rural', ''))
-  );
-  if (partialMatch) return partialMatch;
-
-  // Third, try word-based matching (split by spaces and match any word)
-  const requestedWords = requestedMandal.toLowerCase().split(' ');
-  const wordMatch = Object.keys(rainfallData).find(mandal => {
-    const mandalWords = mandal.toLowerCase().split(' ');
-    return requestedWords.some(word => mandalWords.includes(word));
-  });
-  if (wordMatch) return wordMatch;
-
+  if (!requestedMandal) return null;
+  
+  const normalizedName = normalizeMandalName(requestedMandal);
+  if (!normalizedName) return null;
+  
+  console.log(`🔍 Normalizing "${requestedMandal}" to "${normalizedName}"`);
+  
+  // Create array of all available mandals with their similarity scores
+  const mandalMatches = Object.keys(rainfallData).map(mandal => ({
+    name: mandal,
+    similarity: calculateSimilarity(normalizedName, mandal)
+  }));
+  
+  // Sort by similarity score (highest first)
+  mandalMatches.sort((a, b) => b.similarity - a.similarity);
+  
+  // Return the best match if similarity is above threshold
+  const bestMatch = mandalMatches[0];
+  if (bestMatch && bestMatch.similarity > 0) {
+    console.log(`✅ Matched "${requestedMandal}" to "${bestMatch.name}" (similarity: ${bestMatch.similarity.toFixed(1)})`);
+    return bestMatch.name;
+  }
+  
+  console.log(`❌ No suitable match found for "${requestedMandal}"`);
+  console.log(`📋 Available mandals: ${Object.keys(rainfallData).join(', ')}`);
   return null;
 }
 
@@ -260,6 +306,9 @@ AGRICULTURAL IMPLICATIONS:
       console.log(`   📅 Years analyzed: ${rainfallStats.yearsAnalyzed}`);
     }
 
+    // Use actual rainfall data from the mandal instead of request value
+    const actualRainfall = rainfallStats ? rainfallStats.averageYearlyRainfall : cropData.rainfall;
+
     // Create comprehensive farm profile
     const farmProfile = `
 COMPREHENSIVE FARMER PROFILE:
@@ -268,7 +317,7 @@ BASIC FARM INFORMATION:
 - Current Crop: ${cropData.currentCrop}
 - Soil Type: ${cropData.soilType}
 - Soil pH: ${cropData.phLevel}
-- Annual Rainfall: ${cropData.rainfall} mm
+- Annual Rainfall: ${actualRainfall} mm
 - Average Temperature: ${cropData.temperature} °C
 - Last Year's Yield: ${cropData.yieldHistory} tons/hectare
 - Current Market Price: ₹${cropData.marketPrice} per kg
@@ -438,10 +487,10 @@ REQUIREMENTS:
     // Call AI based on provider selection
     let aiResponse;
     if (aiProvider === 'openai') {
-      console.log('Calling OpenAI...');
+      console.log('Calling OpenAI...with the inputs', farmProfile);
       aiResponse = await getOpenAIRecommendation(farmProfile);
     } else {
-      console.log('Calling Together AI...');
+      console.log('Calling Together AI...with', farmProfile);
       // Initialize Together AI inside the route handler
       const together = new Together({
         apiKey: process.env.TOGETHER_API_KEY,
